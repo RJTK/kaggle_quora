@@ -1,0 +1,99 @@
+'''
+This is intended to build the feature matrix X that will be fed into the
+classifier pipeline.
+'''
+import os
+import sys
+import click
+import logging
+import nltk
+import logging
+import tables
+
+import numpy as np
+import pandas as pd
+
+from dotenv import get_variable; env_file = '/home/ubuntu/science/quora_question_pairs/.env'
+from ipyparallel import Client
+from ast import literal_eval
+
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+from feature_extractors import *
+
+PROJECT_DIR = get_variable(env_file, 'PROJECT_DIR')
+
+question_types = {'who': 1, 'whos': 2, 'whose': 3,
+                  'what': 4, 'whats': 5,
+                  'where': 6, 'wheres': 7,
+                  'when': 8, 'whens': 9,
+                  'why': 10, 'which': 11, 'is': 12,
+                  'can': 13, 'could': 14,
+                  'do': 15, 'does': 16,
+                  'did': 17, 'will': 18, 'would': 19, 'should': 20,
+                  'has': 21, 'have': 22, 'was': 23, 'how': 24}
+
+@click.command()
+@click.argument('f_name', type = click.Path())
+@click.argument('num_rows', type = click.Path(), default = -1)
+def main(f_name, num_rows):
+    num_rows = int(num_rows)
+
+    #---------preprocessing----------
+    get_questions = ExtractCols(['question1', 'question2'])
+
+    #---------question typing---------
+    sent_tokenizer = SentTokenize()
+    question_typer = QuestionTypes(question_types = question_types)
+    question_type_pipe = Pipeline([('sent_tokenizer', sent_tokenizer),
+                                   ('question_typer', question_typer)])
+
+    #--------distance calculation-------
+    calc_masi_dist = MasiDistance()
+    calc_edit_dist1 = EditDistance() #These have tuning parameters and
+    calc_edit_dist2 = EditDistance(sub_cost = 2.0) #could go through cv...
+    calc_edit_dist3 = EditDistance(sub_cost = 0.5)
+    calc_edit_dist4 = EditDistance(transpositions = True)
+    calc_jacc_dist = JaccardDistance()
+    dist_fu = FeatureUnion([('calc_masi_dist', calc_masi_dist),
+                            ('calc_edit_dist1', calc_edit_dist1),
+                            ('calc_edit_dist2', calc_edit_dist2),
+                            ('calc_edit_dist3', calc_edit_dist3),
+                            ('calc_edit_dist4', calc_edit_dist4)],
+                           n_jobs = 1)
+    dist_pipe = Pipeline([('word_tokenizer', word_tokenizer),
+                          ('dist_fu', dist_fu)])
+
+    #-------tfidf-------------
+    # col_stacker = ColumnStacker()
+    # tfidf = TfidfVectorizer(max_df = 0.95, min_df = 2,
+    #                         stop_words = 'english',
+    #                         max_features = TFIDF_FEATURES,
+    #                         ngram_range = (1, 2))
+
+    #--------------output----------------
+    output_dim = 7 #Output dimension of output_fu
+    output_fu = FeatureUnion([('dist_pipe', dist_pipe),
+                              ('question_type_pipe', question_type_pipe)],
+                             n_jobs = 1)
+
+    #--------final assembly----------
+    data_pipe = Pipeline([('get_questions', get_questions),
+                          ('output_fu', output_fu)]) #output feature union
+
+
+    h5f = tables.open_file(PROJECT_DIR + '/data/interim/interim_data.hdf')
+    n_chunks = h5f.get_node_attr('/' + f_name, 'n_chunks')
+    chunk_size = h5f.get_node_attr('/' + f_name, 'chunk_size')
+    h5f.close()
+
+    for i in range(n_chunks):
+        print('chunk ', i + 1, '/', n_chunks, end = '\r')
+        sys.stdout.flush()
+        Di = pd.read_hdf(PROJECT_DIR + '/data/interim/interim_data.hdf',
+                         key = '/' + f_name + '/' + f_name + str(i))
+        Xi = cleaning_pipe.fit_transform(Di)
+        D = pd.DataFrame(X, columns = ['question1', 'question2'])
+    
