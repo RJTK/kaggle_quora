@@ -27,33 +27,13 @@ endif
 TEST?=False
 I_MAX?=0
 
-## Get the raw data
-get_raw_data:
-	$(PYTHON_INTERPRETER) src/data/download_raw_data.py $(TEST)
+## Build feature matrix
+features:
+	$(PYTHON_INTERPRETER) src/features/build_features.py
 
-## Clean the data
+## Clean raw data
 clean_data:
-	$(PYTHON_INTERPRETER) src/data/clean_data.py $(TEST) $(I_MAX)
-
-## Tokenize everything
-tokenize_data:
-	$(PYTHON_INTERPRETER) src/data/tokenize_data.py $(TEST) $(I_MAX)
-
-## Take the position of words
-pos_tag:
-	$(PYTHON_INTERPRETER) src/data/pos_tag.py $(TEST) $(I_MAX)
-
-## Lemmatizes the data
-lemmatize:
-	$(PYTHON_INTERPRETER) src/data/lemmatize_data.py $(TEST) $(I_MAX)
-
-## Calculate distances
-distances:
-	$(PYTHON_INTERPRETER) src/data/distance_calculations.py $(TEST) $(I_MAX)
-
-## Extract the type of question
-extract_question:
-	$(PYTHON_INTERPRETER) src/data/extract_question.py $(TEST) $(I_MAX)
+	$(PYTHON_INTERPRETER) src/data/cleaning_pipeline.py $(TEST)
 
 ## ALL DATA
 all_data: clean_data tokenize_data pos_tag lemmatize distances extract_question
