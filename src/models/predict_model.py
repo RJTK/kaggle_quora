@@ -53,7 +53,7 @@ def main(test):
     D_q2 = pd.read_csv(PROJECT_DIR + '/data/processed/test.csv',
                        index_col = 'id', usecols = ['id', Q_WORD_TOKENIZED[1]],
                        nrows = nrows)
-    q2 = D_q2.loc[:, Q_WORD_TOKENIZED[1]].apply(lambda l: 
+    q2 = D_q2.loc[:, Q_WORD_TOKENIZED[1]].apply(lambda l:
                                                 ' '.join(literal_eval(l)))
     del D_q2
 
@@ -65,13 +65,13 @@ def main(test):
     t0 = time.clock()
     tfidf = t.transform(all_questions.values)
     print('Time: ', time.clock() - t0)
-    
+
     nmf_tfidf = joblib.load(PROJECT_DIR + '/models/nmf_tfidf.pkl')
     print('FACTORIZING...')
     t0 = time.clock()
     W = nmf_tfidf.transform(tfidf)
     print('Time: ', time.clock() - t0)
-    
+
     W = np.abs(W[:nrows, :] - W[nrows:, :])
 
     D = pd.read_csv(PROJECT_DIR + '/data/processed/test.csv', index_col = 'id',
@@ -95,11 +95,12 @@ def main(test):
 
     cls1 = np.where(xgb.classes_ == 1)[0][0]
     y_hat = y_hat[:, cls1]
-    
+
     y_hat = pd.DataFrame(y_hat, columns = ['is_duplicate'])
     y_hat.index.name = 'test_id'
     y_hat.to_csv(PROJECT_DIR + '/reports/submissions/cv_xgboost.csv')
     return
+
 
 if __name__ == '__main__':
   main()
