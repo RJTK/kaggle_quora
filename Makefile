@@ -27,9 +27,14 @@ endif
 TEST?=False
 I_MAX?=0
 
-## Build feature matrix
-features:
-	$(PYTHON_INTERPRETER) src/features/build_features.py
+# run distance features then tfidf features, which produces the final X
+## Distance features
+dist_features:
+	$(PYTHON_INTERPRETER) src/features/dist_features.py
+
+## TFIDF features
+tfidf_features:
+	$(PYTHON_INTERPRETER) src/features/tfidf_features.py
 
 ## Clean raw data
 clean_data:

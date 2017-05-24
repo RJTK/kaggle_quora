@@ -3,7 +3,8 @@ import time
 import numpy as np
 
 from feature_extractors import skipgram_analyzer
-from sklearn.feature_extraction import TfidfVectorizer, NMF
+from sklearn.decomposition import NMF
+from sklearn.feature_extraction.text import TfidfVectorizer
 from src.conf import RAW_DATA_FILES, TFIDF_FEATURES, SKIPGRAM_LIST,\
     INTERIM_DATA_DIR, N_NMF_COMPONENTS, PROCESSED_DATA_DIR
 

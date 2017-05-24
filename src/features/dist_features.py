@@ -5,27 +5,19 @@ classifier pipeline.
 import os
 import sys
 import click
-import logging
-import nltk
-import logging
 import tables
-import time
 import numpy as np
 import pandas as pd
 
 from ipyparallel import Client
-from ast import literal_eval
 
-from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline, FeatureUnion
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import NMF
 
 from feature_extractors import *
 from src.data.cleaning_functions import WordTokenize
 
 from src.conf import CHUNKSIZE, INTERIM_HDF_PATH, RAW_DATA_FILES,\
-    N_NMF_COMPONENTS, Q, FEATURES_DIR
+    INTERIM_DATA_DIR, Q, FEATURES_DIR
 
 question_types = {
     'who': 1,
@@ -100,31 +92,24 @@ def main(num_rows):
     data_pipe = Pipeline([('get_questions', get_questions),
                           ('output_fu', output_fu)])  # output feature union
 
-    h5f = tables.open_file(INTERIM_HDF_PATH)
-    feature_header = ['masi_dist', 'edit_dist1', 'edit_dist2',
-                      'edit_dist3', 'edit_dist4', 'jacc_dist',
-                      'qtype']
-
     pool = Client()
     pool[:].map(os.chdir, [FEATURES_DIR]*len(pool))
     with pool[:].sync_imports():
-        import feature_extractors
+        pass
 
-    push_res = pool[:].push({
-        'data_pipe': data_pipe})
+    pool[:].push({'data_pipe': data_pipe})
 
-    N_JOBS = len(pool)
-    left_indices = range(0, CHUNKSIZE, CHUNKSIZE // N_JOBS)
-    right_indices = range(CHUNKSIZE // N_JOBS, CHUNKSIZE + 1,
-                          CHUNKSIZE // N_JOBS)
+    n_jobs = len(pool)
+    left_indices = range(0, CHUNKSIZE, CHUNKSIZE // n_jobs)
+    right_indices = range(CHUNKSIZE // n_jobs, CHUNKSIZE + 1,
+                          CHUNKSIZE // n_jobs)
 
     for f_name in RAW_DATA_FILES:
+        h5f = tables.open_file(INTERIM_HDF_PATH, 'r')
         n_chunks = h5f.get_node_attr('/' + f_name, 'n_chunks')
-        chunk_size = h5f.get_node_attr('/' + f_name, 'chunk_size')
         h5f.close()
-
         for i in range(n_chunks):
-            print(f_name, 'chunk', i + 1, '/', n_chunks, end='\r')
+            print('chunk', i + 1, '/', n_chunks, end='\r')
             sys.stdout.flush()
             Di = pd.read_hdf(INTERIM_HDF_PATH,
                              key='/' + f_name + '/' + f_name + str(i))
@@ -150,8 +135,9 @@ def main(num_rows):
             # store it's own results to the database independently,
             # similar to what I did for the dwglasso application.
             for pi, li, ri in zip(pool, left_indices, right_indices):
-                results.append(pi.apply_async(data_pipe.fit_transform,
-                                              Di[li:ri]))
+                if len(Di[li:ri]) > 0:
+                    results.append(pi.apply_async(data_pipe.fit_transform,
+                                                  Di[li:ri]))
             for res in results:
                 Xi = res.get()
                 try:
@@ -159,11 +145,17 @@ def main(num_rows):
                 except NameError:
                     X = Xi
 
+        X.dump(INTERIM_DATA_DIR + 'X_dist_' + f_name + '.npy')
+        del X  # Free up memory
+
         nrows = len(q1)
         assert nrows == len(q2), 'q1 and q2 not equal length!'
 
-        X.dump(INTERIM_DATA_DIR + 'X_' + f_name + '.npy')
-        all_questions.dump(INTERIM_DATA_DIR + 'q_' + f_name + '.npy')
+        q1 = np.append(q1, q2)
+        del q2
+        q1.dump(INTERIM_DATA_DIR + 'q_' + f_name + '.npy')
+        del q1
+    return
 
 
 if __name__ == '__main__':

@@ -38,4 +38,5 @@ Q_TYPE = ['question1_type1',
 # tfidf/nmf params
 TFIDF_FEATURES = 20000
 N_NMF_COMPONENTS = 75
-SKIPGRAM_LIST = [(1, 0), (2, 3), (3, 2)]
+# SKIPGRAM_LIST = [(1, 0), (2, 3), (3, 2)]
+SKIPGRAM_LIST = [(1, 0)]
